@@ -7,10 +7,17 @@ class New extends React.Component {
         <head />
         <body>
           <form method="POST" action="/users">
+
             <div>
-              name:<input name="name" type="text" />
+            <h1> Register User Page </h1>
+              Name:<input name="name" type="text" />
             </div>
-            <input type="submit" value="Submit" />
+
+            <div>
+              Password:<input name="password" type="text" />
+            </div>
+
+            <input type="submit" value="Register" />
           </form>
         </body>
       </html>

@@ -13,6 +13,10 @@ const express = require('express');
 const methodOverride = require('method-override');
 const pg = require('pg');
 
+// Added in for cookies and user/ pw authentication
+const sha256 = require('js-sha256');
+const cookieParser = require('cookie-parser');
+
 // Initialise postgres client
 const config = {
   user: 'weslie',
@@ -43,6 +47,8 @@ const app = express();
 app.use(express.urlencoded({ extended: true }));
 app.use(methodOverride('_method'));
 
+app.use(cookieParser());
+
 
 // Set react-views to be the default view engine
 const reactEngine = require('express-react-views').createEngine();
@@ -66,13 +72,100 @@ app.engine('jsx', reactEngine);
     if (err) {
       console.error('Query error:', err.stack);
     } else {
-      console.log('Query result:', result);
+      //console.log('Query result:', result);
 
       // redirect to home page
       response.render( 'pokemon/home', {pokemon: result.rows} );
     }
   });
 }
+
+const userNewForm = (request, response) => {
+  response.render('users/new');
+}  
+
+const userRegister = (request, response) => {
+  const queryString = 'INSERT INTO users (name, password) VALUES ($1, $2) RETURNING *';
+  let hashedPassword = sha256(request.body.password);
+  const values = [request.body.name, hashedPassword];
+  pool.query(queryString, values, (err, result) => {
+    if (err) 
+    {
+      console.error('Query error:', err.stack);
+    } else 
+    {
+      console.log('Query usercreate:', result.rows);
+      //set cookies 
+      response.cookie('userId', result.rows[0].id);        
+      // redirect to home page
+      response.redirect('/');
+    }
+  });
+}
+
+// Test cookies
+const TestCookies = (request, response) => {
+  //response.send('Visits: ' + request.cookies.visits + ', User Id: ' + request.cookies.userId);
+  response.send(request.cookies);
+};
+
+// Create Form, user login
+const userLogInForm = (request, response) => {
+  response.render('users/login');
+};
+
+const userLogIn = (request, response) => {
+  //let id = request.body.name;
+  //console.log(id);
+  const queryString = 'SELECT * FROM users WHERE name = ($1) AND password = ($2)';
+  const values = [request.body.name, sha256(request.body.password)];
+  pool.query(queryString, values, (err, result) => {
+    if (err) 
+    {
+      console.log('Query error:', err.stack);
+    } else 
+    {
+      console.log('Query result', result.rows);
+      console.log('Query result password', result.rows[0].password);
+      console.log('Query result password hashed', sha256(request.body.password));
+      if (result.rows[0].password === sha256(request.body.password))
+      {
+        response.cookie('userId', result.rows[0].id);
+        //response.redirect('/users/' + result.rows[0].id);
+        response.redirect('/');
+      } else 
+      {        
+        response.redirect('/login');
+      }
+    }
+  })
+}
+
+// Create Logout page
+const userLogout = (request, response) => {
+  response.clearCookie('userId');
+  response.redirect('/');
+};
+
+// const userLogIn = (request, response) => {
+//   const queryString = `SELECT * from users WHERE name = '${request.body.name}'`;
+//   pool.query(queryString, (err, result) => {
+//     if (err) 
+//     {
+//       console.error('Query error:', err.stack);
+//       response.send('Query Error');
+//     } else 
+//     {
+//       const password = sha256(request.body.password);
+//       const userId = result.rows[0].id;
+//       if (password === result.rows[0].password) 
+//       {
+//         response.cookie('userId', userId);
+//       }
+//        response.redirect(`/users/${userId}`);
+//     }
+//   });
+// };
 
 const getNew = (request, response) => {
   response.render('pokemon/new');
@@ -157,11 +250,6 @@ const getNew = (request, response) => {
  * ===================================
  */
 
-
-const getNew1 = (request, response) => {
-  response.render('users/new');
-}
-
 const getUserId = (request, response) => {
     response.render('users/catch');
 }
@@ -200,31 +288,7 @@ const showPokemonListCatch = (request, response) => {
             //response.redirect('/');
         }
       })
-    }  
-
-// const userCreate = (request, response) => {
-
-//   const queryString = 'INSERT INTO users (name) VALUES ($1)';
-
-//   const values = [request.body.name];
-
-//   console.log(queryString);
-
-//   pool.query(queryString, values, (err, result) => {
-
-//     if (err) {
-
-//       console.error('Query error:', err.stack);
-//       response.send('dang it.');
-//     } else {
-
-//       console.log('Query result:', result);
-
-//       // redirect to home page
-//       response.redirect('/');
-//     }
-//   });
-// }
+    }
 
 /**
  * ===================================
@@ -245,15 +309,22 @@ app.get('/', getRoot);
 
 // app.delete('/pokemon/:id', deletePokemon);
 
-// TODO: New routes for creating users
+app.get('/users/new', userNewForm);
+app.post('/users', userRegister);
+app.get('/cookies', TestCookies);
+app.get('/logout', userLogout);
+app.get('/login', userLogInForm);
+app.post('/login', userLogIn);
 
-app.get('/users/new', getNew1);
 app.get('/users/catch', getUserId);
 app.post('/users', idCreateUserPokemon);
-//app.get('/pokemon/:id/users/:id', showPokemonListCatch);
 app.get('/users/:id', showPokemonListCatch);
+//app.get('/pokemon/:id/users/:id', showPokemonListCatch);
 
-// app.post('/users', userCreate);
+
+
+
+
 
 /**
  * ===================================
